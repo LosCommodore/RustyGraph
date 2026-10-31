@@ -48,14 +48,18 @@ fn build_graph() -> CalcGraph {
     let s2 = node("s2", Op::Sub, None);
     let s3 = node("s3", Op::Sub, None);
     let s4 = node("s4", Op::Add, None);
-    let out = node("out", Op::Sub, None);
+    let s5 = node("s5", Op::Sub, None);
+    let out1 = node("out1", Op::Sub, None);
+    let out2 = node("out2", Op::Add, None); // more than one output is fine
 
     let edges = [
-        (a, s1, 1), (b, s1, 2),              // s1  = a + b
-        (b, s2, 1), (c, s2, 2),              // s2  = b - c
-        (s1, s3, 1), (s2, s3, 2),            // s3  = s1 - s2
-        (s2, s4, 1), (d, s4, 2), (a, s4, 3), // s4  = s2 + d + a
-        (s3, out, 1), (s4, out, 2),          // out = s3 - s4
+        (a, s1, 1), (b, s1, 2),              // s1   = a + b
+        (b, s2, 1), (c, s2, 2),              // s2   = b - c
+        (s1, s3, 1), (s2, s3, 2),            // s3   = s1 - s2
+        (s2, s4, 1), (d, s4, 2), (a, s4, 3), // s4   = s2 + d + a
+        (s1, s5, 1), (d, s5, 2),             // s5   = s1 - d
+        (s3, out1, 1), (s4, out1, 2),        // out1 = s3 - s4
+        (s4, out2, 1), (s5, out2, 2),        // out2 = s4 + s5
     ];
     for (from, to, pos) in edges {
         g.add_edge(from, to, pos);
@@ -177,12 +181,12 @@ fn main() {
 
     // Counter-example: one back edge turns it into a cyclic graph.
     let mut cyclic = g.clone();
-    let out = NodeIndex::new(g.node_count() - 1);
-    cyclic.add_edge(out, NodeIndex::new(0), 1); // out -> a
+    let out1 = NodeIndex::new(g.node_count() - 2);
+    cyclic.add_edge(out1, NodeIndex::new(0), 1); // out1 -> a
     match toposort(&cyclic, None) {
         Ok(_) => println!("unexpected: still acyclic"),
         Err(c) => println!(
-            "with extra edge out->a: is_cyclic_directed = {}, toposort error at {:?}",
+            "with extra edge out1->a: is_cyclic_directed = {}, toposort error at {:?}",
             is_cyclic_directed(&cyclic),
             cyclic[c.node_id()].name
         ),
