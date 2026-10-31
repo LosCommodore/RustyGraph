@@ -1,0 +1,18 @@
+{
+    // show remaining hints (let types) only while Ctrl+Alt is held
+    "[rust]": {
+        "editor.inlayHints.enabled": "offUnlessPressed"
+    },
+    // rust-analyzer inlay hints: keep only the useful ones
+    "rust-analyzer.inlayHints.chainingHints.enable": false,
+    "rust-analyzer.inlayHints.parameterHints.enable": false,
+    "rust-analyzer.inlayHints.closingBraceHints.enable": false,
+    "rust-analyzer.inlayHints.closureReturnTypeHints.enable": "never",
+    "rust-analyzer.inlayHints.lifetimeElisionHints.enable": "never",
+    "rust-analyzer.inlayHints.reborrowHints.enable": "never",
+    "rust-analyzer.inlayHints.implicitDrops.enable": false,
+    // variable type hints stay on, but not for closures or obvious constructors
+    "rust-analyzer.inlayHints.typeHints.hideClosureInitialization": true,
+    "rust-analyzer.inlayHints.typeHints.hideNamedConstructor": true,
+    "rust-analyzer.inlayHints.maxLength": 20
+}
