@@ -1,6 +1,9 @@
 # rusty_graph
 
-[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/LosCommodore/RustyGraph/HEAD?labpath=petgraph_dag.ipynb)
+[![Open the notebook online](https://img.shields.io/badge/notebook-open%20online-2ea44f?logo=github)](https://loscommodore.github.io/RustyGraph/)
+[![Publish notebook](https://github.com/LosCommodore/RustyGraph/actions/workflows/pages.yml/badge.svg)](https://github.com/LosCommodore/RustyGraph/actions/workflows/pages.yml)
+
+📖 **[Read the notebook online](https://loscommodore.github.io/RustyGraph/)**: the full walkthrough with all pictures, nothing to install.
 
 A small playground for exploring the [petgraph](https://docs.rs/petgraph) crate in Rust.
 
@@ -98,14 +101,21 @@ You can also open it in VS Code and choose the **Rust** kernel. The first cell c
 
 ## Publishing
 
-GitHub shows the notebook directly, with its saved outputs. [`.github/workflows/pages.yml`](.github/workflows/pages.yml) also publishes it as a web page on GitHub Pages on every push to `main` or `master`. To turn this on, go to the repository's **Settings → Pages** and set **Source** to **GitHub Actions**.
+GitHub shows the notebook directly, with its saved outputs. [`.github/workflows/pages.yml`](.github/workflows/pages.yml) also publishes it as a web page on GitHub Pages on every push to `main` or `master`: **<https://loscommodore.github.io/RustyGraph/>**. The [workflow runs](https://github.com/LosCommodore/RustyGraph/actions/workflows/pages.yml) are listed under the repository's Actions tab. To turn this on, go to the repository's **Settings → Pages** and set **Source** to **GitHub Actions**.
 
 The workflow only converts the notebook to HTML. It does not re-run the notebook, so after changing a cell, run all cells and save before committing.
-
-**Run it online:** the Binder badge at the top opens the notebook in a live Jupyter session, with nothing to install. The first launch after a new commit takes a few minutes while Binder builds the image. This happens once per commit: Binder caches the image, so later launches start in seconds. Occasionally a launch is slow again because Binder sends it to a server that hasn't cached the image yet. Everything Binder needs is in [`.binder/`](.binder/); see [docs/binder.md](docs/binder.md) for how Binder works.
 
 To preview the page locally:
 
 ```sh
 jupyter nbconvert --to html petgraph_dag.ipynb --output-dir site --output index
 ```
+
+### Run it online with Binder (work in progress)
+
+> [!WARNING]
+> The Binder setup is still being worked on and may not start reliably yet.
+
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/LosCommodore/RustyGraph/HEAD?labpath=petgraph_dag.ipynb)
+
+The Binder badge opens the notebook in a live Jupyter session, with nothing to install. The first launch after a new commit takes a few minutes while Binder builds the image. This happens once per commit: Binder caches the image, so later launches start in seconds. Occasionally a launch is slow again because Binder sends it to a server that hasn't cached the image yet. Everything Binder needs is in [`.binder/`](.binder/); see [docs/binder.md](docs/binder.md) for how Binder works.
