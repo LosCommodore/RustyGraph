@@ -25,6 +25,10 @@ pub trait NodeStyle {
     fn ordered_inputs(&self) -> bool {
         false
     }
+    /// Input nodes are drawn together in the top row, even without layers.
+    fn is_input(&self) -> bool {
+        false
+    }
 }
 
 const COLORS: [&str; 6] = ["#cfe8ff", "#d6f5d6", "#fff2b3", "#ffd9b3", "#f2c6de", "#e0d4f7"];
@@ -92,21 +96,34 @@ pub fn to_dot<N: NodeStyle + Debug, E: Debug>(
     );
     let mut out = format!("{dot:?}");
 
-    // Dot can't emit subgraphs, so add one `rank=same` group per layer before
-    // the closing brace to make Graphviz draw each layer in one row.
-    // Node ids in petgraph's DOT output are the node indices.
-    if let Some(layer) = layer {
-        let mut rows: BTreeMap<usize, Vec<String>> = BTreeMap::new();
-        for n in g.node_indices() {
-            rows.entry(layer[&n]).or_default().push(n.index().to_string());
+    // Dot can't emit subgraphs, so add rank groups before the closing brace:
+    // one row per layer if layers are given, otherwise one top row for the
+    // inputs. Node ids in petgraph's DOT output are the node indices.
+    let ranks: String = match layer {
+        Some(layer) => {
+            let mut rows: BTreeMap<usize, Vec<String>> = BTreeMap::new();
+            for n in g.node_indices() {
+                rows.entry(layer[&n]).or_default().push(n.index().to_string());
+            }
+            rows.values()
+                .map(|ids| format!("    {{ rank=same; {} }}\n", ids.join("; ")))
+                .collect()
         }
-        let ranks: String = rows
-            .values()
-            .map(|ids| format!("    {{ rank=same; {} }}\n", ids.join("; ")))
-            .collect();
-        let closing = out.rfind('}').expect("dot output ends with }");
-        out.insert_str(closing, &ranks);
-    }
+        None => {
+            let inputs: Vec<_> = g
+                .node_indices()
+                .filter(|&n| g[n].is_input())
+                .map(|n| n.index().to_string())
+                .collect();
+            if inputs.is_empty() {
+                String::new()
+            } else {
+                format!("    {{ rank=min; {} }}\n", inputs.join("; "))
+            }
+        }
+    };
+    let closing = out.rfind('}').expect("dot output ends with }");
+    out.insert_str(closing, &ranks);
     out
 }
 

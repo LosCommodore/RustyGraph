@@ -151,6 +151,9 @@ impl NodeStyle for Node {
     fn ordered_inputs(&self) -> bool {
         self.op == Op::Sub
     }
+    fn is_input(&self) -> bool {
+        self.op == Op::Input
+    }
 }
 
 fn save_picture(g: &CalcGraph, layer: &HashMap<NodeIndex, usize>, path: &str) {
