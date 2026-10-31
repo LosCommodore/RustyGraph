@@ -1,7 +1,7 @@
 /target
-graph.dot
-graph.svg
+/graph.dot
+/graph.svg
 site/
 .ipynb_checkpoints/
-graph_before.dot
-graph_before.svg
+/graph_before.dot
+/graph_before.svg

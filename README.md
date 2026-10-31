@@ -12,7 +12,49 @@ It builds a tiny computation graph, a **directed acyclic graph (DAG)**. Only the
 4. fills in the empty nodes layer by layer, since every node's inputs sit in earlier layers,
 5. draws the graph with Graphviz, coloured by layer and labelled with the results.
 
+The graph, from [`src/main.rs`](src/main.rs). Each edge is `(from, to, input number)`:
+
+```rust
+fn build_graph() -> CalcGraph {
+    let mut g = CalcGraph::new();
+    let mut node = |name, op, value| g.add_node(Node { name, op, value });
+
+    let a = node("a", Op::Input, Some(10));
+    let b = node("b", Op::Input, Some(4));
+    let c = node("c", Op::Input, Some(3));
+    let d = node("d", Op::Input, Some(7));
+    let s1 = node("s1", Op::Add, None);
+    let s2 = node("s2", Op::Sub, None);
+    let s3 = node("s3", Op::Sub, None);
+    let s4 = node("s4", Op::Add, None);
+    let s5 = node("s5", Op::Sub, None);
+    let out1 = node("out1", Op::Sub, None);
+    let out2 = node("out2", Op::Add, None); // more than one output is fine
+
+    let edges = [
+        (a, s1, 1), (b, s1, 2),              // s1   = a + b
+        (b, s2, 1), (c, s2, 2),              // s2   = b - c
+        (s1, s3, 1), (s2, s3, 2),            // s3   = s1 - s2
+        (s2, s4, 1), (d, s4, 2), (a, s4, 3), // s4   = s2 + d + a
+        (s1, s5, 1), (d, s5, 2),             // s5   = s1 - d
+        (s3, out1, 1), (s4, out1, 2),        // out1 = s3 - s4
+        (s4, out2, 1), (s5, out2, 2),        // out2 = s4 + s5
+    ];
+    for (from, to, pos) in edges {
+        g.add_edge(from, to, pos);
+    }
+    g
+}
+```
+
+> [!IMPORTANT]
+> **Each node has exactly one result** (its `= …` value). It is passed unchanged along every edge leaving the node.
+>
+> **The numbers on the edges are not values.** They give the input order of the receiving node: a `−` node computes input 1 − input 2 − ….
+
 ![The computation graph](docs/graph.svg)
+
+Each layer has its own colour (inputs blue, then green, then red, outputs white), and every edge takes the colour of the layer it leaves. The graph has two outputs, `out1` and `out2`.
 
 ## Two versions
 
