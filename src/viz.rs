@@ -16,7 +16,7 @@ use petgraph::visit::EdgeRef;
 pub trait NodeStyle {
     /// Text inside the box; `\n` starts a new line.
     fn label(&self) -> String;
-    /// Empty nodes are drawn white with a dashed border.
+    /// Empty nodes are drawn with a dashed border (white if there are no layers).
     fn is_empty(&self) -> bool {
         false
     }
@@ -31,7 +31,13 @@ pub trait NodeStyle {
     }
 }
 
-const COLORS: [&str; 6] = ["#cfe8ff", "#d6f5d6", "#fff2b3", "#ffd9b3", "#f2c6de", "#e0d4f7"];
+/// Per layer: node fill and the colour of the edges leaving the layer.
+/// The last layer (the outputs) is always drawn black on white.
+const LAYER_COLORS: [(&str, &str); 3] = [
+    ("#cfe8ff", "black"),   // inputs: blue
+    ("#d6f5d6", "#2e7d32"), // green
+    ("#ffd6d6", "#c62828"), // red
+];
 
 /// An SVG image. Shown as a picture when it is the last value of a notebook cell.
 pub struct Svg(pub String);
@@ -47,8 +53,9 @@ impl Svg {
     }
 }
 
-/// Draws `g` top-down. With `layer`, each layer gets its own row and colour.
-/// Edges listed in `highlight` are drawn in red.
+/// Draws `g` top-down. With `layer`, each layer gets its own row and colour,
+/// and edges take the colour of the layer they leave. Edges listed in
+/// `highlight` are drawn thick, and in red when there are no layers.
 pub fn draw<N: NodeStyle + Debug, E: Debug + Copy + Into<usize>>(
     g: &DiGraph<N, E>,
     layer: Option<&HashMap<NodeIndex, usize>>,
@@ -63,16 +70,19 @@ pub fn to_dot<N: NodeStyle + Debug, E: Debug + Copy + Into<usize>>(
     layer: Option<&HashMap<NodeIndex, usize>>,
     highlight: &[EdgeIndex],
 ) -> String {
+    let last = layer.and_then(|l| l.values().max().copied());
+    let colors = |n: NodeIndex| match layer.map(|l| l[&n]) {
+        None => LAYER_COLORS[0],
+        Some(l) if Some(l) == last => ("white", "black"),
+        Some(l) => LAYER_COLORS[l % LAYER_COLORS.len()],
+    };
     let node_attrs = |_: &DiGraph<N, E>, (n, node): (NodeIndex, &N)| {
         let mut label = node.label();
         if let Some(layer) = layer {
             label += &format!("\nlayer {}", layer[&n]);
         }
-        let (fill, style) = if node.is_empty() {
-            ("white", "rounded,filled,dashed")
-        } else {
-            (COLORS[layer.map_or(0, |l| l[&n]) % COLORS.len()], "rounded,filled")
-        };
+        let fill = if layer.is_none() && node.is_empty() { "white" } else { colors(n).0 };
+        let style = if node.is_empty() { "rounded,filled,dashed" } else { "rounded,filled" };
         let label = label.replace('"', "\\\"").replace('\n', "\\n");
         format!("label=\"{label}\" shape=box style=\"{style}\" fillcolor=\"{fill}\"")
     };
@@ -81,8 +91,14 @@ pub fn to_dot<N: NodeStyle + Debug, E: Debug + Copy + Into<usize>>(
             Some(label) => format!("label=\"{label}\" fontsize=18"),
             None => String::new(),
         };
+        let color = match (layer, highlight.contains(&e.id())) {
+            (None, true) => "red",
+            (None, false) => "black",
+            (Some(_), _) => colors(e.source()).1,
+        };
+        attrs += &format!(" color=\"{color}\" fontcolor=\"{color}\"");
         if highlight.contains(&e.id()) {
-            attrs += " color=red fontcolor=red penwidth=2";
+            attrs += " penwidth=3";
         }
         attrs
     };
