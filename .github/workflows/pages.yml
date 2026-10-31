@@ -1,0 +1,42 @@
+# Publishes petgraph_dag.ipynb to GitHub Pages.
+# The notebook is executed locally (outputs are stored in the .ipynb),
+# so CI only converts it to HTML and needs no Rust toolchain.
+name: Publish notebook
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install nbconvert
+      - run: jupyter nbconvert --to html petgraph_dag.ipynb --output-dir site --output index
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
