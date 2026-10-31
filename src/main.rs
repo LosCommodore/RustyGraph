@@ -1,21 +1,20 @@
-//! Exploring petgraph: build a DAG, verify it is acyclic, sort it into layers,
-//! evaluate a tiny "computation graph" over it and visualize the result.
+//! Exploring petgraph: build a DAG whose input layer holds values, verify it is
+//! acyclic, sort it into layers, then fill in the other nodes layer by layer
+//! and visualize the result.
 
 use std::collections::HashMap;
-use std::fs;
-use std::process::Command;
 
 use petgraph::algo::{is_cyclic_directed, toposort};
-use petgraph::dot::{Config, Dot, RankDir};
 use petgraph::graph::{DiGraph, NodeIndex};
 use petgraph::visit::EdgeRef;
 use petgraph::Direction;
+use rusty_graph::viz::{self, NodeStyle};
 
 /// What a node computes from its inputs.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 enum Op {
-    /// Source node holding a constant.
-    Input(i64),
+    /// Source node; its value is given, not computed.
+    Input,
     /// Sum of all inputs.
     Add,
     /// First input minus all remaining inputs.
@@ -26,6 +25,8 @@ enum Op {
 struct Node {
     name: &'static str,
     op: Op,
+    /// Given for inputs; `None` for every other node until it is computed.
+    value: Option<i64>,
 }
 
 /// Edge weight = operand position. Only matters for non-commutative ops (Sub).
@@ -33,19 +34,20 @@ type Operand = usize;
 
 type CalcGraph = DiGraph<Node, Operand>;
 
+/// Builds the graph with only the input layer filled in.
 fn build_graph() -> CalcGraph {
     let mut g = CalcGraph::new();
-    let mut node = |name, op| g.add_node(Node { name, op });
+    let mut node = |name, op, value| g.add_node(Node { name, op, value });
 
-    let a = node("a", Op::Input(10));
-    let b = node("b", Op::Input(4));
-    let c = node("c", Op::Input(3));
-    let d = node("d", Op::Input(7));
-    let s1 = node("s1", Op::Add);
-    let s2 = node("s2", Op::Sub);
-    let s3 = node("s3", Op::Sub);
-    let s4 = node("s4", Op::Add);
-    let out = node("out", Op::Sub);
+    let a = node("a", Op::Input, Some(10));
+    let b = node("b", Op::Input, Some(4));
+    let c = node("c", Op::Input, Some(3));
+    let d = node("d", Op::Input, Some(7));
+    let s1 = node("s1", Op::Add, None);
+    let s2 = node("s2", Op::Sub, None);
+    let s3 = node("s3", Op::Sub, None);
+    let s4 = node("s4", Op::Add, None);
+    let out = node("out", Op::Sub, None);
 
     let edges = [
         (a, s1, 0), (b, s1, 1),              // s1  = a + b
@@ -75,91 +77,89 @@ fn layers(g: &CalcGraph, topo: &[NodeIndex]) -> HashMap<NodeIndex, usize> {
     layer
 }
 
-/// Evaluate every node in topological order, so all inputs are ready when needed.
-fn evaluate(g: &CalcGraph, topo: &[NodeIndex]) -> HashMap<NodeIndex, i64> {
-    let mut value = HashMap::new();
-    for &n in topo {
-        // Collect inputs sorted by operand position.
-        let mut inputs: Vec<(Operand, i64)> = g
-            .edges_directed(n, Direction::Incoming)
-            .map(|e| (*e.weight(), value[&e.source()]))
-            .collect();
-        inputs.sort_by_key(|&(pos, _)| pos);
-        let mut vals = inputs.into_iter().map(|(_, v)| v);
-
-        let v = match g[n].op {
-            Op::Input(x) => x,
-            Op::Add => vals.sum(),
-            Op::Sub => {
-                let first = vals.next().unwrap_or(0);
-                first - vals.sum::<i64>()
-            }
-        };
-        value.insert(n, v);
+/// Groups nodes by layer: `result[l]` holds the nodes of layer `l`.
+fn group_by_layer(g: &CalcGraph, layer: &HashMap<NodeIndex, usize>) -> Vec<Vec<NodeIndex>> {
+    let depth = layer.values().max().map_or(0, |d| d + 1);
+    let mut groups = vec![Vec::new(); depth];
+    for n in g.node_indices() {
+        groups[layer[&n]].push(n);
     }
-    value
+    groups
 }
 
-fn op_symbol(op: Op) -> String {
-    match op {
-        Op::Input(x) => format!("input {x}"),
-        Op::Add => "+".into(),
-        Op::Sub => "−".into(),
-    }
+/// Incoming edges of `n`, sorted by operand position.
+fn operands(g: &CalcGraph, n: NodeIndex) -> Vec<petgraph::graph::EdgeReference<'_, Operand>> {
+    let mut es: Vec<_> = g.edges_directed(n, Direction::Incoming).collect();
+    es.sort_by_key(|e| *e.weight());
+    es
 }
 
-fn to_dot(
-    g: &CalcGraph,
-    layer: &HashMap<NodeIndex, usize>,
-    value: &HashMap<NodeIndex, i64>,
-) -> String {
-    const COLORS: [&str; 6] = ["#cfe8ff", "#d6f5d6", "#fff2b3", "#ffd9b3", "#f2c6de", "#e0d4f7"];
-
-    let node_attrs = |_: &CalcGraph, (n, node): (NodeIndex, &Node)| {
-        format!(
-            "label=\"{}  [{}]\\nlayer {}\\n= {}\" shape=box style=\"rounded,filled\" fillcolor=\"{}\"",
-            node.name,
-            op_symbol(node.op),
-            layer[&n],
-            value[&n],
-            COLORS[layer[&n] % COLORS.len()],
-        )
-    };
-    let edge_attrs = |g: &CalcGraph, e: petgraph::graph::EdgeReference<Operand>| {
-        // Show operand position only where order matters.
-        match g[e.target()].op {
-            Op::Sub => format!("label=\"{}\"", e.weight()),
-            _ => String::new(),
+/// Computes a node from the values of its inputs, which must already be filled in.
+fn compute_node(g: &CalcGraph, n: NodeIndex) -> i64 {
+    let mut vals = operands(g, n)
+        .into_iter()
+        .map(|e| g[e.source()].value.expect("inputs are computed in an earlier layer"));
+    match g[n].op {
+        Op::Input => g[n].value.expect("input nodes have a value"),
+        Op::Add => vals.sum(),
+        Op::Sub => {
+            let first = vals.next().unwrap_or(0);
+            first - vals.sum::<i64>()
         }
-    };
-
-    let dot = Dot::with_attr_getters(
-        g,
-        &[Config::NodeNoLabel, Config::EdgeNoLabel, Config::RankDir(RankDir::TB)],
-        &edge_attrs,
-        &node_attrs,
-    );
-    // petgraph's Dot can't emit subgraphs, so append one `rank=same` group per
-    // layer before the closing brace to make Graphviz draw each layer in one row.
-    // Node ids in petgraph's DOT output are the node indices.
-    let mut out = format!("{dot:?}");
-    let closing = out.rfind('}').expect("dot output ends with }");
-    let depth = layer.values().max().copied().unwrap_or(0);
-    let mut ranks = String::new();
-    for l in 0..=depth {
-        let ids: Vec<_> = g
-            .node_indices()
-            .filter(|n| layer[n] == l)
-            .map(|n| n.index().to_string())
-            .collect();
-        ranks += &format!("    {{ rank=same; {} }}\n", ids.join("; "));
     }
-    out.insert_str(closing, &ranks);
-    out
+}
+
+/// Fills in every node of one layer. All their inputs sit in earlier layers.
+fn compute_layer(g: &mut CalcGraph, nodes: &[NodeIndex]) {
+    for &n in nodes {
+        if g[n].op != Op::Input {
+            g[n].value = Some(compute_node(g, n));
+        }
+    }
+}
+
+fn fmt_value(v: Option<i64>) -> String {
+    v.map_or("?".into(), |v| v.to_string())
+}
+
+/// The node's formula, e.g. `s1 - s2`.
+fn expr(g: &CalcGraph, n: NodeIndex) -> String {
+    let inputs: Vec<_> = operands(g, n).iter().map(|e| g[e.source()].name).collect();
+    match g[n].op {
+        Op::Input => "input".into(),
+        Op::Add => inputs.join(" + "),
+        Op::Sub => inputs.join(" - "),
+    }
+}
+
+fn op_symbol(op: Op) -> &'static str {
+    match op {
+        Op::Input => "input",
+        Op::Add => "+",
+        Op::Sub => "−",
+    }
+}
+
+/// How a node is drawn (see `viz`).
+impl NodeStyle for Node {
+    fn label(&self) -> String {
+        format!("{}  [{}]\n= {}", self.name, op_symbol(self.op), fmt_value(self.value))
+    }
+    fn is_empty(&self) -> bool {
+        self.value.is_none()
+    }
+    fn ordered_inputs(&self) -> bool {
+        self.op == Op::Sub
+    }
+}
+
+fn save_picture(g: &CalcGraph, layer: &HashMap<NodeIndex, usize>, path: &str) {
+    viz::draw(g, Some(layer), &[]).save(path).expect("write svg");
+    println!("Wrote {path}");
 }
 
 fn main() {
-    let g = build_graph();
+    let mut g = build_graph();
     println!("Graph: {} nodes, {} edges", g.node_count(), g.edge_count());
 
     // --- 1. Is it really a DAG? -------------------------------------------
@@ -186,37 +186,30 @@ fn main() {
 
     // --- 2. Layers ----------------------------------------------------------
     let layer = layers(&g, &topo);
-    let depth = layer.values().max().copied().unwrap_or(0);
+    let groups = group_by_layer(&g, &layer);
     println!("\nLayers:");
-    for l in 0..=depth {
-        let mut in_layer: Vec<_> = topo.iter().filter(|n| layer[n] == l).map(|&n| g[n].name).collect();
-        in_layer.sort();
-        println!("  layer {l}: {}", in_layer.join(", "));
+    for (l, nodes) in groups.iter().enumerate() {
+        let names: Vec<_> = nodes.iter().map(|&n| g[n].name).collect();
+        println!("  layer {l}: {}", names.join(", "));
     }
 
-    // --- 3. Compute ---------------------------------------------------------
-    let value = evaluate(&g, &topo);
-    println!("\nResults (in evaluation order):");
-    for &n in &topo {
-        let inputs: Vec<_> = {
-            let mut es: Vec<_> = g.edges_directed(n, Direction::Incoming).collect();
-            es.sort_by_key(|e| *e.weight());
-            es.iter().map(|e| g[e.source()].name).collect()
-        };
-        let expr = match g[n].op {
-            Op::Input(_) => "const".to_string(),
-            Op::Add => inputs.join(" + "),
-            Op::Sub => inputs.join(" - "),
-        };
-        println!("  {:>4} = {:<14} = {}", g[n].name, expr, value[&n]);
+    // --- 3. Compute layer by layer -------------------------------------------
+    println!("\nBefore computing:");
+    for (l, nodes) in groups.iter().enumerate() {
+        let vals: Vec<_> = nodes.iter().map(|&n| format!("{} = {}", g[n].name, fmt_value(g[n].value))).collect();
+        println!("  layer {l}: {}", vals.join(", "));
+    }
+    save_picture(&g, &layer, "graph_before.svg");
+
+    println!("\nComputing:");
+    for (l, nodes) in groups.iter().enumerate().skip(1) {
+        compute_layer(&mut g, nodes);
+        for &n in nodes {
+            println!("  layer {l}: {:>4} = {:<14} = {}", g[n].name, expr(&g, n), fmt_value(g[n].value));
+        }
     }
 
     // --- 4. Visualize -------------------------------------------------------
-    let dot = to_dot(&g, &layer, &value);
-    fs::write("graph.dot", &dot).expect("write graph.dot");
-    println!("\nWrote graph.dot");
-    match Command::new("dot").args(["-Tsvg", "graph.dot", "-o", "graph.svg"]).status() {
-        Ok(s) if s.success() => println!("Rendered graph.svg (Graphviz)"),
-        _ => println!("Graphviz `dot` not available; render with: dot -Tsvg graph.dot -o graph.svg"),
-    }
+    println!();
+    save_picture(&g, &layer, "graph.svg");
 }

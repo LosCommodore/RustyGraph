@@ -4,12 +4,12 @@
 
 A small playground for exploring the [petgraph](https://docs.rs/petgraph) crate in Rust.
 
-It builds a tiny computation graph, a **directed acyclic graph (DAG)** in which each node is a constant input, a sum (`+`) or a difference (`−`), and then:
+It builds a tiny computation graph, a **directed acyclic graph (DAG)**. Only the input layer starts with values; every other node is a sum (`+`) or a difference (`−`) and starts empty. Then it:
 
 1. checks that the graph really is acyclic (`is_cyclic_directed`, `toposort`),
 2. shows what happens when a cycle is added, and finds it with `tarjan_scc`,
 3. sorts the nodes into layers (longest-path layering),
-4. computes every node's value in topological order,
+4. fills in the empty nodes layer by layer, since every node's inputs sit in earlier layers,
 5. draws the graph with Graphviz, coloured by layer and labelled with the results.
 
 ![The computation graph](docs/graph.svg)
@@ -22,6 +22,8 @@ It builds a tiny computation graph, a **directed acyclic graph (DAG)** in which 
 | Jupyter notebook | [`petgraph_dag.ipynb`](petgraph_dag.ipynb) | Jupyter with the evcxr Rust kernel |
 
 Both use the same graph. The notebook walks through it one step at a time with explanations, and adds the cycle example and a "play with it" cell.
+
+The drawing code is shared by both and kept out of the way in [`src/viz.rs`](src/viz.rs). It turns any petgraph `DiGraph` into a Graphviz picture; a node type only has to say how it looks by implementing the small `NodeStyle` trait.
 
 ## Requirements
 
@@ -42,7 +44,7 @@ evcxr_jupyter --install
 cargo run
 ```
 
-This prints the topological order, the layers and the results, and writes `graph.dot` and `graph.svg`.
+This prints the topological order, the layers and each layer's results as they are computed. It writes `graph_before.svg` (only inputs filled in) and `graph.svg` (everything computed).
 
 **Notebook:**
 
