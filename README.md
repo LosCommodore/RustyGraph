@@ -1,5 +1,7 @@
 # rusty_graph
 
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/LosCommodore/RustyGraph/HEAD?labpath=petgraph_dag.ipynb)
+
 A small playground for exploring the [petgraph](https://docs.rs/petgraph) crate in Rust.
 
 It builds a tiny computation graph, a **directed acyclic graph (DAG)** in which each node is a constant input, a sum (`+`) or a difference (`−`), and then:
@@ -55,6 +57,8 @@ You can also open it in VS Code and choose the **Rust** kernel. The first cell c
 GitHub shows the notebook directly, with its saved outputs. [`.github/workflows/pages.yml`](.github/workflows/pages.yml) also publishes it as a web page on GitHub Pages on every push to `main` or `master`. To turn this on, go to the repository's **Settings → Pages** and set **Source** to **GitHub Actions**.
 
 The workflow only converts the notebook to HTML. It does not re-run the notebook, so after changing a cell, run all cells and save before committing.
+
+**Run it online:** the Binder badge at the top opens the notebook in a live Jupyter session, with nothing to install. The first launch after a new commit takes a few minutes while Binder builds the image. Everything Binder needs is in [`.binder/`](.binder/); see [docs/binder.md](docs/binder.md) for how Binder works.
 
 To preview the page locally:
 

@@ -1,0 +1,4 @@
+#!/bin/bash
+# Runs at every session start: puts cargo on PATH for the Rust kernel.
+export PATH="$HOME/.cargo/bin:$PATH"
+exec "$@"
