@@ -58,7 +58,7 @@ GitHub shows the notebook directly, with its saved outputs. [`.github/workflows/
 
 The workflow only converts the notebook to HTML. It does not re-run the notebook, so after changing a cell, run all cells and save before committing.
 
-**Run it online:** the Binder badge at the top opens the notebook in a live Jupyter session, with nothing to install. The first launch after a new commit takes a few minutes while Binder builds the image. Everything Binder needs is in [`.binder/`](.binder/); see [docs/binder.md](docs/binder.md) for how Binder works.
+**Run it online:** the Binder badge at the top opens the notebook in a live Jupyter session, with nothing to install. The first launch after a new commit takes a few minutes while Binder builds the image. This happens once per commit: Binder caches the image, so later launches start in seconds. Occasionally a launch is slow again because Binder sends it to a server that hasn't cached the image yet. Everything Binder needs is in [`.binder/`](.binder/); see [docs/binder.md](docs/binder.md) for how Binder works.
 
 To preview the page locally:
 
