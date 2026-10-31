@@ -20,10 +20,10 @@ pub trait NodeStyle {
     fn is_empty(&self) -> bool {
         false
     }
-    /// If true, the node's incoming edges are labelled with their weight
-    /// (e.g. the operand position for a subtraction).
-    fn ordered_inputs(&self) -> bool {
-        false
+    /// Label for the incoming edge with this weight (e.g. its input number).
+    /// `None` draws the edge without a label.
+    fn input_label(&self, _input: usize) -> Option<String> {
+        None
     }
     /// Input nodes are drawn together in the top row, even without layers.
     fn is_input(&self) -> bool {
@@ -49,7 +49,7 @@ impl Svg {
 
 /// Draws `g` top-down. With `layer`, each layer gets its own row and colour.
 /// Edges listed in `highlight` are drawn in red.
-pub fn draw<N: NodeStyle + Debug, E: Debug>(
+pub fn draw<N: NodeStyle + Debug, E: Debug + Copy + Into<usize>>(
     g: &DiGraph<N, E>,
     layer: Option<&HashMap<NodeIndex, usize>>,
     highlight: &[EdgeIndex],
@@ -58,7 +58,7 @@ pub fn draw<N: NodeStyle + Debug, E: Debug>(
 }
 
 /// The DOT text behind [`draw`].
-pub fn to_dot<N: NodeStyle + Debug, E: Debug>(
+pub fn to_dot<N: NodeStyle + Debug, E: Debug + Copy + Into<usize>>(
     g: &DiGraph<N, E>,
     layer: Option<&HashMap<NodeIndex, usize>>,
     highlight: &[EdgeIndex],
@@ -77,10 +77,9 @@ pub fn to_dot<N: NodeStyle + Debug, E: Debug>(
         format!("label=\"{label}\" shape=box style=\"{style}\" fillcolor=\"{fill}\"")
     };
     let edge_attrs = |g: &DiGraph<N, E>, e: EdgeReference<E>| {
-        let mut attrs = if g[e.target()].ordered_inputs() {
-            format!("label=\"{:?}\"", e.weight())
-        } else {
-            String::new()
+        let mut attrs = match g[e.target()].input_label((*e.weight()).into()) {
+            Some(label) => format!("label=\"{label}\" fontsize=18"),
+            None => String::new(),
         };
         if highlight.contains(&e.id()) {
             attrs += " color=red fontcolor=red penwidth=2";

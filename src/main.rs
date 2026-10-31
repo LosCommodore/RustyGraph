@@ -17,7 +17,7 @@ enum Op {
     Input,
     /// Sum of all inputs.
     Add,
-    /// First input minus all remaining inputs.
+    /// Input 1 minus all remaining inputs: input 1 − input 2 − …
     Sub,
 }
 
@@ -29,7 +29,8 @@ struct Node {
     value: Option<i64>,
 }
 
-/// Edge weight = operand position. Only matters for non-commutative ops (Sub).
+/// Edge weight = input number of the receiving node, counting from 1.
+/// Only matters for non-commutative ops (Sub: input 1 − input 2 − …).
 type Operand = usize;
 
 type CalcGraph = DiGraph<Node, Operand>;
@@ -50,11 +51,11 @@ fn build_graph() -> CalcGraph {
     let out = node("out", Op::Sub, None);
 
     let edges = [
-        (a, s1, 0), (b, s1, 1),              // s1  = a + b
-        (b, s2, 0), (c, s2, 1),              // s2  = b - c
-        (s1, s3, 0), (s2, s3, 1),            // s3  = s1 - s2
-        (s2, s4, 0), (d, s4, 1), (a, s4, 2), // s4  = s2 + d + a
-        (s3, out, 0), (s4, out, 1),          // out = s3 - s4
+        (a, s1, 1), (b, s1, 2),              // s1  = a + b
+        (b, s2, 1), (c, s2, 2),              // s2  = b - c
+        (s1, s3, 1), (s2, s3, 2),            // s3  = s1 - s2
+        (s2, s4, 1), (d, s4, 2), (a, s4, 3), // s4  = s2 + d + a
+        (s3, out, 1), (s4, out, 2),          // out = s3 - s4
     ];
     for (from, to, pos) in edges {
         g.add_edge(from, to, pos);
@@ -87,7 +88,7 @@ fn group_by_layer(g: &CalcGraph, layer: &HashMap<NodeIndex, usize>) -> Vec<Vec<N
     groups
 }
 
-/// Incoming edges of `n`, sorted by operand position.
+/// Incoming edges of `n`, sorted by input number.
 fn operands(g: &CalcGraph, n: NodeIndex) -> Vec<petgraph::graph::EdgeReference<'_, Operand>> {
     let mut es: Vec<_> = g.edges_directed(n, Direction::Incoming).collect();
     es.sort_by_key(|e| *e.weight());
@@ -148,8 +149,8 @@ impl NodeStyle for Node {
     fn is_empty(&self) -> bool {
         self.value.is_none()
     }
-    fn ordered_inputs(&self) -> bool {
-        self.op == Op::Sub
+    fn input_label(&self, input: usize) -> Option<String> {
+        (self.op != Op::Input).then(|| input.to_string())
     }
     fn is_input(&self) -> bool {
         self.op == Op::Input
@@ -177,7 +178,7 @@ fn main() {
     // Counter-example: one back edge turns it into a cyclic graph.
     let mut cyclic = g.clone();
     let out = NodeIndex::new(g.node_count() - 1);
-    cyclic.add_edge(out, NodeIndex::new(0), 0); // out -> a
+    cyclic.add_edge(out, NodeIndex::new(0), 1); // out -> a
     match toposort(&cyclic, None) {
         Ok(_) => println!("unexpected: still acyclic"),
         Err(c) => println!(
