@@ -5,3 +5,7 @@ edition = "2024"
 
 [dependencies]
 petgraph = "0.8.3"
+
+[[bin]]
+name = "rusty_graph"  # The name of the compiled executable file
+path = "src/draft.rs"

@@ -14,5 +14,8 @@
     // variable type hints stay on, but not for closures or obvious constructors
     "rust-analyzer.inlayHints.typeHints.hideClosureInitialization": true,
     "rust-analyzer.inlayHints.typeHints.hideNamedConstructor": true,
-    "rust-analyzer.inlayHints.maxLength": 20
+    "rust-analyzer.inlayHints.maxLength": 20,
+    "cSpell.words": [
+        "petgraph"
+    ]
 }

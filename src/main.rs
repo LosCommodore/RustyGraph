@@ -1,13 +1,15 @@
 //! Exploring petgraph: build a DAG whose input layer holds values, verify it is
 //! acyclic, sort it into layers, then fill in the other nodes layer by layer
 //! and visualize the result.
+mod draft;
+mod notes;
 
 use std::collections::HashMap;
 
+use petgraph::Direction;
 use petgraph::algo::{is_cyclic_directed, toposort};
 use petgraph::graph::{DiGraph, NodeIndex};
 use petgraph::visit::EdgeRef;
-use petgraph::Direction;
 use rusty_graph::viz::{self, NodeStyle};
 
 /// What a node computes from its inputs.
@@ -53,13 +55,21 @@ fn build_graph() -> CalcGraph {
     let out2 = node("out2", Op::Add, None); // more than one output is fine
 
     let edges = [
-        (a, s1, 1), (b, s1, 2),              // s1   = a + b
-        (b, s2, 1), (c, s2, 2),              // s2   = b - c
-        (s1, s3, 1), (s2, s3, 2),            // s3   = s1 - s2
-        (s2, s4, 1), (d, s4, 2), (a, s4, 3), // s4   = s2 + d + a
-        (s1, s5, 1), (d, s5, 2),             // s5   = s1 - d
-        (s3, out1, 1), (s4, out1, 2),        // out1 = s3 - s4
-        (s4, out2, 1), (s5, out2, 2),        // out2 = s4 + s5
+        (a, s1, 1),
+        (b, s1, 2), // s1   = a + b
+        (b, s2, 1),
+        (c, s2, 2), // s2   = b - c
+        (s1, s3, 1),
+        (s2, s3, 2), // s3   = s1 - s2
+        (s2, s4, 1),
+        (d, s4, 2),
+        (a, s4, 3), // s4   = s2 + d + a
+        (s1, s5, 1),
+        (d, s5, 2), // s5   = s1 - d
+        (s3, out1, 1),
+        (s4, out1, 2), // out1 = s3 - s4
+        (s4, out2, 1),
+        (s5, out2, 2), // out2 = s4 + s5
     ];
     for (from, to, pos) in edges {
         g.add_edge(from, to, pos);
@@ -101,9 +111,11 @@ fn operands(g: &CalcGraph, n: NodeIndex) -> Vec<petgraph::graph::EdgeReference<'
 
 /// Computes a node from the values of its inputs, which must already be filled in.
 fn compute_node(g: &CalcGraph, n: NodeIndex) -> i64 {
-    let mut vals = operands(g, n)
-        .into_iter()
-        .map(|e| g[e.source()].value.expect("inputs are computed in an earlier layer"));
+    let mut vals = operands(g, n).into_iter().map(|e| {
+        g[e.source()]
+            .value
+            .expect("inputs are computed in an earlier layer")
+    });
     match g[n].op {
         Op::Input => g[n].value.expect("input nodes have a value"),
         Op::Add => vals.sum(),
@@ -148,7 +160,12 @@ fn op_symbol(op: Op) -> &'static str {
 /// How a node is drawn (see `viz`).
 impl NodeStyle for Node {
     fn label(&self) -> String {
-        format!("{}  [{}]\n= {}", self.name, op_symbol(self.op), fmt_value(self.value))
+        format!(
+            "{}  [{}]\n= {}",
+            self.name,
+            op_symbol(self.op),
+            fmt_value(self.value)
+        )
     }
     fn is_empty(&self) -> bool {
         self.value.is_none()
@@ -162,7 +179,9 @@ impl NodeStyle for Node {
 }
 
 fn save_picture(g: &CalcGraph, layer: &HashMap<NodeIndex, usize>, path: &str) {
-    viz::draw(g, Some(layer), &[]).save(path).expect("write svg");
+    viz::draw(g, Some(layer), &[])
+        .save(path)
+        .expect("write svg");
     println!("Wrote {path}");
 }
 
@@ -204,7 +223,10 @@ fn main() {
     // --- 3. Compute layer by layer -------------------------------------------
     println!("\nBefore computing:");
     for (l, nodes) in groups.iter().enumerate() {
-        let vals: Vec<_> = nodes.iter().map(|&n| format!("{} = {}", g[n].name, fmt_value(g[n].value))).collect();
+        let vals: Vec<_> = nodes
+            .iter()
+            .map(|&n| format!("{} = {}", g[n].name, fmt_value(g[n].value)))
+            .collect();
         println!("  layer {l}: {}", vals.join(", "));
     }
     save_picture(&g, &layer, "graph_before.svg");
@@ -213,7 +235,12 @@ fn main() {
     for (l, nodes) in groups.iter().enumerate().skip(1) {
         compute_layer(&mut g, nodes);
         for &n in nodes {
-            println!("  layer {l}: {:>4} = {:<14} = {}", g[n].name, expr(&g, n), fmt_value(g[n].value));
+            println!(
+                "  layer {l}: {:>4} = {:<14} = {}",
+                g[n].name,
+                expr(&g, n),
+                fmt_value(g[n].value)
+            );
         }
     }
 
